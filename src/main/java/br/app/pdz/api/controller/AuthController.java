@@ -18,9 +18,11 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
@@ -109,7 +111,7 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok("User registered successfully!");
-     }
+    }
 
     @GetMapping("/me")
     @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
@@ -122,7 +124,34 @@ public class AuthController {
 
         return userDetails;
     }
+
+    @PostMapping("/discord/success")
+    public ResponseEntity<?> handleDiscordLogin(OAuth2AuthenticationToken authentication) {
+        String discordId = authentication.getPrincipal().getAttribute("id");
+        String email = authentication.getPrincipal().getAttribute("email");
+        String username = authentication.getPrincipal().getAttribute("username");
+
+        User user = userRepository.findByDiscordId(discordId)
+                .orElseGet(() -> {
+                    User newUser = new User();
+                    newUser.setDiscordId(discordId);
+                    newUser.setEmail(email);
+                    newUser.setUsername(username);
+                    newUser.setRoles(Set.of(roleRepository.findByName(EnumRole.ROLE_USER).orElseThrow()));
+                    return userRepository.save(newUser);
+                });
+
+        String jwt = jwtUtil.generateJwtToken(new UsernamePasswordAuthenticationToken(user.getUsername(), null,
+                user.getRoles().stream()
+                        .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                        .collect(Collectors.toList())));
+
+        return ResponseEntity.ok(new JwtResponse(jwt, user.getId(), user.getUsername(),
+                user.getRoles().stream().map(Role::getName).map(Enum::name).collect(Collectors.toList())));
+    }
+
+    @GetMapping("/discord/failure")
+    public ResponseEntity<String> handleDiscordFailure() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
+    }
 }
-
-
-
