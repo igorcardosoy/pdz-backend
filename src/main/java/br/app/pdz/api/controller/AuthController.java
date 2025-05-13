@@ -10,6 +10,8 @@ import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
 import br.app.pdz.api.service.UserDetailsImpl;
 import br.app.pdz.api.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +25,10 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -64,22 +64,8 @@ public class AuthController {
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtil.generateJwtToken(authentication);
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList());
-
-        JwtResponse response = new JwtResponse(
-                jwt,
-                userDetails.getId(),
-                userDetails.getUsername(),
-                roles
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) authentication.getPrincipal()));
     }
 
     @PostMapping("/signup")
@@ -113,41 +99,51 @@ public class AuthController {
         return ResponseEntity.ok("User registered successfully!");
     }
 
-    @GetMapping("/me")
-    @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
-    public UserDetailsImpl checkUserAccess() {
-        SecurityContext securityContext = SecurityContextHolder.getContext();
-        Authentication authentication = securityContext.getAuthentication();
+    @GetMapping("/discord/success")
+    public ResponseEntity<?> handleDiscordLogin(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            DefaultOAuth2User discordUser = (DefaultOAuth2User) request.getSession().getAttribute("user");
+            request.getSession().invalidate();
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        log.info("username: {}", userDetails.getUsername());
+            if (discordUser == null) {
+                response.sendRedirect("/auth/discord/failure");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
+            }
 
-        return userDetails;
-    }
+            User user = userRepository.findByDiscordId(discordUser.getAttribute("id"))
+                    .orElseGet(() -> {
+                        User newUser = new User();
+                        newUser.setDiscordId(discordUser.getAttribute("id"));
+                        newUser.setUsername(discordUser.getAttribute("username"));
+                        newUser.setEmail(discordUser.getAttribute("email"));
 
-    @PostMapping("/discord/success")
-    public ResponseEntity<?> handleDiscordLogin(OAuth2AuthenticationToken authentication) {
-        String discordId = authentication.getPrincipal().getAttribute("id");
-        String email = authentication.getPrincipal().getAttribute("email");
-        String username = authentication.getPrincipal().getAttribute("username");
+                        Set<Role> roles = new HashSet<>();
+                        roles.add(roleRepository.findByName(EnumRole.ROLE_USER).orElse(null));
+                        newUser.setRoles(roles);
 
-        User user = userRepository.findByDiscordId(discordId)
-                .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setDiscordId(discordId);
-                    newUser.setEmail(email);
-                    newUser.setUsername(username);
-                    newUser.setRoles(Set.of(roleRepository.findByName(EnumRole.ROLE_USER).orElseThrow()));
-                    return userRepository.save(newUser);
-                });
+                        User savedUser = userRepository.save(newUser);
+                        log.info("Created new user from Discord login: {}", savedUser.getUsername());
 
-        String jwt = jwtUtil.generateJwtToken(new UsernamePasswordAuthenticationToken(user.getUsername(), null,
-                user.getRoles().stream()
-                        .map(role -> new SimpleGrantedAuthority(role.getName().name()))
-                        .collect(Collectors.toList())));
+                        return savedUser;
+                    });
 
-        return ResponseEntity.ok(new JwtResponse(jwt, user.getId(), user.getUsername(),
-                user.getRoles().stream().map(Role::getName).map(Enum::name).collect(Collectors.toList())));
+            Collection<SimpleGrantedAuthority> authorities = user.getRoles().stream()
+                    .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                    .collect(Collectors.toList());
+
+            UserDetailsImpl userDetails = new UserDetailsImpl(
+                    user.getId(),
+                    user.getUsername(),
+                    user.getEmail(),
+                    user.getPassword(),
+                    authorities
+            );
+
+            return ResponseEntity.ok(jwtUtil.createJwtResponse(userDetails));
+        } catch (Exception e) {
+            log.error("Error in Discord login handler", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing Discord login: " + e.getMessage());
+        }
     }
 
     @GetMapping("/discord/failure")

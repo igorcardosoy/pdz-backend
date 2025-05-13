@@ -3,6 +3,8 @@ package br.app.pdz.api.config;
 import br.app.pdz.api.filter.AuthTokenFilter;
 import br.app.pdz.api.service.AuthEntryPointJwt;
 import br.app.pdz.api.service.UserDetailsServiceImpl;
+import lombok.extern.log4j.Log4j2;
+import org.apache.logging.log4j.util.Supplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -14,12 +16,21 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import java.util.Optional;
 
 @Configuration
+@Log4j2
 @EnableWebSecurity
 @EnableMethodSecurity()
 public class SecurityConfiguration {
@@ -55,15 +66,18 @@ public class SecurityConfiguration {
         http
                 .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/signin", "/auth/signup", "/auth/discord/**").permitAll()
+                        .requestMatchers("/auth/**", "/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
-                        .defaultSuccessUrl("/auth/discord/success")
-                        .failureUrl("/auth/discord/failure")
+                        .successHandler((request, response, authentication) -> {
+                            request.getSession().setAttribute("user", authentication.getPrincipal());
+                            response.sendRedirect("/auth/discord/success");
+                        })
+                        .failureHandler((request, response, exception) -> response.sendRedirect("/auth/discord/failure"))
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
