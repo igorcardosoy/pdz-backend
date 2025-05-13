@@ -1,61 +1,77 @@
 package br.app.pdz.api.util;
 
 
+import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.service.UserDetailsImpl;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
-import java.util.Base64;
-import java.util.Date;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @Log4j2
 public class JwtUtil {
 
     @Value("${pdz.api.jwtSecret}")
-    private String jwtSecret;
+    private String jwtSecretStr;
+    private Key jwtSecret;
 
+    @PostConstruct
+    public void init() {
+        jwtSecret = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecretStr));
+    }
 
 
     @Value("${pdz.api.jwtExpirationMs}")
     private int jwtExpirationMs;
 
-    public String generateJwtToken(Authentication authentication) {
-        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
-        Key key = new SecretKeySpec(Base64.getDecoder().decode(jwtSecret), "HmacSHA256");
-
+    public String generateJwtToken(UserDetailsImpl userDetails) {
         return Jwts.builder()
-                .setSubject(userPrincipal.getUsername())
+                .setSubject(userDetails.getUsername())
+                .claim("id", userDetails.getId())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(new Date().getTime() + jwtExpirationMs))
-                .signWith(key)
+                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .signWith(jwtSecret, SignatureAlgorithm.HS512)
                 .compact();
     }
 
     public String getUserNameFromJwtToken(String token) {
-        Key key = new SecretKeySpec(Base64.getDecoder().decode(jwtSecret), "HmacSHA256");
         return Jwts.parserBuilder()
-                .setSigningKey(key)
+                .setSigningKey(jwtSecret)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
     }
 
+    public JwtResponse createJwtResponse(UserDetailsImpl userDetails) {
+        String jwt = generateJwtToken(userDetails);
+
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
+        return new JwtResponse(
+                jwt,
+                userDetails.getId(),
+                userDetails.getUsername(),
+                roles
+        );
+    }
+
     public boolean validateJwtToken(String authToken) {
         try {
-            Key key = new SecretKeySpec(Base64.getDecoder().decode(jwtSecret), "HmacSHA256");
             Jwts.parserBuilder()
-                    .setSigningKey(key)
+                    .setSigningKey(jwtSecret)
                     .build()
                     .parseClaimsJws(authToken);
             return true;

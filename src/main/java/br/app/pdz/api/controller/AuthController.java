@@ -1,6 +1,5 @@
 package br.app.pdz.api.controller;
 
-import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.dto.SignInRequest;
 import br.app.pdz.api.dto.SignUpRequest;
 import br.app.pdz.api.model.EnumRole;
@@ -9,25 +8,22 @@ import br.app.pdz.api.model.User;
 import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
 import br.app.pdz.api.service.UserDetailsImpl;
+import br.app.pdz.api.service.UserDetailsServiceImpl;
 import br.app.pdz.api.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Slf4j
 @RestController
@@ -38,16 +34,19 @@ public class AuthController {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final UserDetailsServiceImpl userDetailsService;
     private final JwtUtil jwtUtil;
 
     public AuthController(UserRepository userRepository,
                           RoleRepository roleRepository,
                           PasswordEncoder passwordEncoder,
                           AuthenticationManager authenticationManager,
+                            UserDetailsServiceImpl userDetailsService,
                           JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userDetailsService = userDetailsService;
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
     }
@@ -62,22 +61,8 @@ public class AuthController {
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtil.generateJwtToken(authentication);
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList());
-
-        JwtResponse response = new JwtResponse(
-                jwt,
-                userDetails.getId(),
-                userDetails.getUsername(),
-                roles
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) authentication.getPrincipal()));
     }
 
     @PostMapping("/signup")
@@ -109,20 +94,46 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok("User registered successfully!");
-     }
+    }
 
-    @GetMapping("/me")
-    @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
-    public UserDetailsImpl checkUserAccess() {
-        SecurityContext securityContext = SecurityContextHolder.getContext();
-        Authentication authentication = securityContext.getAuthentication();
+    @GetMapping("/discord/success")
+    public ResponseEntity<?> handleDiscordLogin(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            DefaultOAuth2User discordUser = (DefaultOAuth2User) request.getSession().getAttribute("user");
+            request.getSession().invalidate();
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        log.info("username: {}", userDetails.getUsername());
+            if (discordUser == null) {
+                response.sendRedirect("/auth/discord/failure");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
+            }
 
-        return userDetails;
+            User user = userRepository.findByDiscordId(discordUser.getAttribute("id"))
+                    .orElseGet(() -> {
+                        User newUser = new User();
+                        newUser.setDiscordId(discordUser.getAttribute("id"));
+                        newUser.setUsername(discordUser.getAttribute("username"));
+                        newUser.setEmail(discordUser.getAttribute("email"));
+
+                        Set<Role> roles = new HashSet<>();
+                        roles.add(roleRepository.findByName(EnumRole.ROLE_USER).orElse(null));
+                        newUser.setRoles(roles);
+
+                        User savedUser = userRepository.save(newUser);
+                        log.info("Created new user from Discord login: {}", savedUser.getUsername());
+
+                        return savedUser;
+                    });
+
+
+            return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) userDetailsService.loadUserByUsername(user.getUsername())));
+        } catch (Exception e) {
+            log.error("Error in Discord login handler", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing Discord login: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/discord/failure")
+    public ResponseEntity<String> handleDiscordFailure() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
     }
 }
-
-
-
