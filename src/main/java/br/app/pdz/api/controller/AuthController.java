@@ -121,7 +121,6 @@ public class AuthController {
                         return savedUser;
                     });
 
-            UserDetailsServiceImpl userDetailsService = new UserDetailsServiceImpl(userRepository);
 
             return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) userDetailsService.loadUserByUsername(user.getUsername())));
         } catch (Exception e) {
