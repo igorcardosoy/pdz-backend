@@ -1,8 +1,6 @@
 package br.app.pdz.api.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.util.HashSet;
@@ -24,7 +22,6 @@ public class User {
     @Column(unique = true)
     private String email;
 
-    @Column
     private String password;
 
     @Column(unique = true)
