@@ -1,7 +1,6 @@
 package br.app.pdz.api.controller;
 
 import br.app.pdz.api.service.UserDetailsImpl;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;

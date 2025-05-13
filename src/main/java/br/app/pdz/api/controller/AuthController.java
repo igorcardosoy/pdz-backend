@@ -1,6 +1,5 @@
 package br.app.pdz.api.controller;
 
-import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.dto.SignInRequest;
 import br.app.pdz.api.dto.SignUpRequest;
 import br.app.pdz.api.model.EnumRole;
@@ -9,27 +8,22 @@ import br.app.pdz.api.model.User;
 import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
 import br.app.pdz.api.service.UserDetailsImpl;
+import br.app.pdz.api.service.UserDetailsServiceImpl;
 import br.app.pdz.api.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -127,19 +121,9 @@ public class AuthController {
                         return savedUser;
                     });
 
-            Collection<SimpleGrantedAuthority> authorities = user.getRoles().stream()
-                    .map(role -> new SimpleGrantedAuthority(role.getName().name()))
-                    .collect(Collectors.toList());
+            UserDetailsServiceImpl userDetailsService = new UserDetailsServiceImpl(userRepository);
 
-            UserDetailsImpl userDetails = new UserDetailsImpl(
-                    user.getId(),
-                    user.getUsername(),
-                    user.getEmail(),
-                    user.getPassword(),
-                    authorities
-            );
-
-            return ResponseEntity.ok(jwtUtil.createJwtResponse(userDetails));
+            return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) userDetailsService.loadUserByUsername(user.getUsername())));
         } catch (Exception e) {
             log.error("Error in Discord login handler", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing Discord login: " + e.getMessage());
