@@ -1,6 +1,6 @@
 package br.app.pdz.api.filter;
 
-import br.app.pdz.api.service.UserDetailsServiceImpl;
+import br.app.pdz.api.service.user.UserDetailsServiceImpl;
 import br.app.pdz.api.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

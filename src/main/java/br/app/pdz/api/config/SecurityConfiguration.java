@@ -1,8 +1,8 @@
 package br.app.pdz.api.config;
 
 import br.app.pdz.api.filter.AuthTokenFilter;
-import br.app.pdz.api.service.AuthEntryPointJwt;
-import br.app.pdz.api.service.UserDetailsServiceImpl;
+import br.app.pdz.api.service.auth.AuthEntryPointJwt;
+import br.app.pdz.api.service.user.UserDetailsServiceImpl;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

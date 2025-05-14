@@ -2,7 +2,7 @@ package br.app.pdz.api.util;
 
 
 import br.app.pdz.api.dto.JwtResponse;
-import br.app.pdz.api.service.UserDetailsImpl;
+import br.app.pdz.api.service.user.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;

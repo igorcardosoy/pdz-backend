@@ -1,4 +1,4 @@
-package br.app.pdz.api.service;
+package br.app.pdz.api.service.user;
 
 import br.app.pdz.api.model.User;
 import br.app.pdz.api.repository.UserRepository;
