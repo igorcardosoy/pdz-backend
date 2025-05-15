@@ -98,6 +98,7 @@ public class AuthService {
     }
 
     public ResponseEntity<?> handleOAuth2SignIn(DefaultOAuth2User oAuth2User) {
+        log.info("Handling OAuth2 sign-in for user: {}", oAuth2User);
         try {
             User user = userRepository.findByDiscordId(oAuth2User.getAttribute("id"))
                     .orElseGet(() -> {
@@ -110,11 +111,13 @@ public class AuthService {
                         roles.add(roleRepository.findByName(EnumRole.ROLE_USER).orElse(null));
                         newUser.setRoles(roles);
 
-                        User savedUser = userRepository.save(newUser);
-                        log.info("Created new user from oAuth2 login: {}", savedUser.getUsername());
+                        log.info("Created new user from oAuth2 login: {}", newUser.getUsername());
 
-                        return savedUser;
+                        return newUser;
                     });
+
+            user.setProfilePictureName(oAuth2User.getAttribute("avatar"));
+            userRepository.save(user);
 
             log.info("User signed in with oAuth2: {}", user.getUsername());
             return ResponseEntity.ok(jwtUtil.createJwtResponse((UserDetailsImpl) userDetailsService.loadUserByUsername(user.getUsername())));

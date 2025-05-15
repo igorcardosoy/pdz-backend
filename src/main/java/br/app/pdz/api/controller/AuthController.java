@@ -1,6 +1,5 @@
 package br.app.pdz.api.controller;
 
-import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.dto.SignInRequest;
 import br.app.pdz.api.dto.SignUpRequest;
 import br.app.pdz.api.service.auth.AuthService;
@@ -27,9 +26,7 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> signIn(@RequestBody SignInRequest signInRequest) {
-        JwtResponse jwtResponse = authService.signIn(signInRequest);
-
-        return ResponseEntity.ok(jwtResponse);
+        return ResponseEntity.ok(authService.signIn(signInRequest));
     }
 
     @PostMapping("/signup")
@@ -40,7 +37,7 @@ public class AuthController {
         var isUserCreated = authService.signUp(signUpRequest);
         if (isUserCreated.getStatusCode() != HttpStatus.CREATED) return isUserCreated;
 
-        return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully!");
+        return ResponseEntity.status(HttpStatus.CREATED).body("Success: User registered");
     }
 
     @GetMapping("/discord/success")
@@ -50,7 +47,7 @@ public class AuthController {
 
             if (oAuth2User == null) {
                 response.sendRedirect("/auth/discord/failure");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Error: Discord authentication failed.");
             }
 
         return authService.handleOAuth2SignIn(oAuth2User);
@@ -58,6 +55,6 @@ public class AuthController {
 
     @GetMapping("/discord/failure")
     public ResponseEntity<String> handleDiscordFailure() {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Discord authentication failed.");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Error: Discord authentication failed.");
     }
 }
