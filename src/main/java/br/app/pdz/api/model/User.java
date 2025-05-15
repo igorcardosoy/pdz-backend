@@ -27,7 +27,7 @@ public class User {
     @Column(unique = true)
     private String discordId;
 
-    private String profilePicturePath;
+    private String profilePictureName;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",

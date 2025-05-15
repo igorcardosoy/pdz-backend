@@ -16,17 +16,21 @@ public class UserDetailsImpl implements UserDetails {
 
     private final Long id;
     private final String username;
+    private final String discordId;
     private final String email;
     @JsonIgnore
     private final String password;
+    private final String profilePictureName;
     private final Collection<? extends GrantedAuthority> authorities;
 
-    public UserDetailsImpl(Long id, String username, String email, String password,
+    public UserDetailsImpl(Long id, String username, String discordId, String email, String password, String profilePictureName,
                            Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
+        this.discordId = discordId;
         this.email = email;
         this.password = password;
+        this.profilePictureName = profilePictureName;
         this.authorities = authorities;
     }
 
@@ -35,11 +39,20 @@ public class UserDetailsImpl implements UserDetails {
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toUnmodifiableList());
 
+        String profilePicture;
+        if (user.getDiscordId() != null) {
+            profilePicture = String.format("https://cdn.discordapp.com/avatars/%s/%s.png", user.getDiscordId(), user.getProfilePictureName());
+        } else {
+            profilePicture = user.getProfilePictureName();
+        }
+
         return new UserDetailsImpl(
                 user.getId(),
                 user.getUsername(),
+                user.getDiscordId(),
                 user.getEmail(),
                 user.getPassword(),
+                profilePicture,
                 authorities
         );
     }
