@@ -60,15 +60,15 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/oauth2/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
                             request.getSession().setAttribute("user", authentication.getPrincipal());
-                            response.sendRedirect("/auth/discord/success");
+                            response.sendRedirect("/api/auth/discord/success");
                         })
-                        .failureHandler((request, response, exception) -> response.sendRedirect("/auth/discord/failure"))
+                        .failureHandler((request, response, exception) -> response.sendRedirect("/api/auth/discord/failure"))
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
