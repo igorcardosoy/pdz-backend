@@ -1,8 +1,9 @@
 package br.app.pdz.api.controller;
 
+import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.dto.SignInRequest;
 import br.app.pdz.api.dto.SignUpRequest;
-import br.app.pdz.api.service.auth.AuthService;
+import br.app.pdz.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
 
 @Slf4j
 @RestController
@@ -26,31 +25,25 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> signIn(@RequestBody SignInRequest signInRequest) {
-        return ResponseEntity.ok(authService.signIn(signInRequest));
+        JwtResponse jwtResponse = authService.signIn(signInRequest);
+
+        return ResponseEntity.ok(jwtResponse);
     }
 
     @PostMapping("/signup")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequest signUpRequest) {
-        var existenceCheck = authService.verifyExistence(signUpRequest.username(), signUpRequest.email());
-        if (existenceCheck.getStatusCode() != HttpStatus.OK) return existenceCheck;
-
-        var isUserCreated = authService.signUp(signUpRequest);
-        if (isUserCreated.getStatusCode() != HttpStatus.CREATED) return isUserCreated;
+        authService.signUp(signUpRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Success: User registered");
     }
 
     @GetMapping("/discord/success")
-    public ResponseEntity<?> oAuth2SignIn(HttpServletRequest request, HttpServletResponse response) throws IOException {
-            DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
-            request.getSession().invalidate();
+    public ResponseEntity<?> oAuth2SignIn(HttpServletRequest request, HttpServletResponse response) {
+        DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
 
-            if (oAuth2User == null) {
-                response.sendRedirect("/auth/discord/failure");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Error: Discord authentication failed.");
-            }
+        JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-        return authService.handleOAuth2SignIn(oAuth2User);
+        return ResponseEntity.ok(jwtResponse);
     }
 
     @GetMapping("/discord/failure")

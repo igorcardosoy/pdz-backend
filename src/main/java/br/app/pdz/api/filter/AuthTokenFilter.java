@@ -1,6 +1,6 @@
 package br.app.pdz.api.filter;
 
-import br.app.pdz.api.service.user.UserDetailsServiceImpl;
+import br.app.pdz.api.service.UserService;
 import br.app.pdz.api.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,11 +22,11 @@ import java.io.IOException;
 public class AuthTokenFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserDetailsServiceImpl userDetailsService;
+    private final UserService userService;
 
-    public AuthTokenFilter(JwtUtil jwtUtil, UserDetailsServiceImpl userDetailsService) {
+    public AuthTokenFilter(JwtUtil jwtUtil, UserService userService) {
         this.jwtUtil = jwtUtil;
-        this.userDetailsService = userDetailsService;
+        this.userService = userService;
     }
 
 
@@ -37,9 +37,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtil.validateJwtToken(jwt)) {
+            if (jwt != null) {
+                jwtUtil.validateJwtToken(jwt);
                 var username = jwtUtil.getUserNameFromJwtToken(jwt);
-                var userDetails = userDetailsService.loadUserByUsername(username);
+                var userDetails = userService.loadUserByUsername(username);
 
                 UsernamePasswordAuthenticationToken authenticationToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
@@ -49,7 +50,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             }
         } catch (Exception e) {
-            log.error("Cannot set user authentication: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
 
