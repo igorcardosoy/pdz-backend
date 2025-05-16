@@ -13,7 +13,7 @@ import java.io.IOException;
 
 @RestController
 @Log4j2
-@RequestMapping("/user")
+@RequestMapping("/api/user")
 @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
 public class UserController {
 
