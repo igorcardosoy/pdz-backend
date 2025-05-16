@@ -1,4 +1,4 @@
-package br.app.pdz.api.model.exeption;
+package br.app.pdz.api.model.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;

@@ -1,6 +1,6 @@
 package br.app.pdz.api.config;
 
-import br.app.pdz.api.model.exeption.ExceptionWithHttpCode;
+import br.app.pdz.api.model.exception.ExceptionWithHttpCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;

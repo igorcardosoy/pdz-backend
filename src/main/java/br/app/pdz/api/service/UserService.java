@@ -2,9 +2,9 @@ package br.app.pdz.api.service;
 
 import br.app.pdz.api.dto.ProfilePictureDTO;
 import br.app.pdz.api.dto.UserDTO;
-import br.app.pdz.api.model.exeption.ProfilePictureException;
+import br.app.pdz.api.model.exception.ProfilePictureException;
 import br.app.pdz.api.model.User;
-import br.app.pdz.api.model.exeption.UserNotFoundException;
+import br.app.pdz.api.model.exception.UserNotFoundException;
 import br.app.pdz.api.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
