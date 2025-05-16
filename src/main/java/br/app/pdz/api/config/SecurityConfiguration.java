@@ -1,8 +1,8 @@
 package br.app.pdz.api.config;
 
 import br.app.pdz.api.filter.AuthTokenFilter;
-import br.app.pdz.api.service.auth.AuthEntryPointJwt;
-import br.app.pdz.api.service.user.UserDetailsServiceImpl;
+import br.app.pdz.api.filter.AuthEntryPointJwt;
+import br.app.pdz.api.service.UserService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,14 +25,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 @EnableMethodSecurity()
 public class SecurityConfiguration {
-    private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt authEntryPoint;
     private final AuthTokenFilter authTokenFilter;
+    private final UserService userService;
 
-    public SecurityConfiguration(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter) {
-        this.userDetailsService = userDetailsService;
+    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService) {
         this.authEntryPoint = authEntryPoint;
         this.authTokenFilter = authTokenFilter;
+        this.userService = userService;
     }
 
     @Bean
@@ -43,7 +43,7 @@ public class SecurityConfiguration {
     @Bean
     @Primary
     public AuthenticationManagerBuilder configureAuthenticationManagerBuilder(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
-        authenticationManagerBuilder.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+        authenticationManagerBuilder.userDetailsService(userService).passwordEncoder(passwordEncoder());
         return authenticationManagerBuilder;
     }
 
@@ -60,15 +60,15 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/oauth2/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
                             request.getSession().setAttribute("user", authentication.getPrincipal());
-                            response.sendRedirect("/auth/discord/success");
+                            response.sendRedirect("/api/auth/discord/success");
                         })
-                        .failureHandler((request, response, exception) -> response.sendRedirect("/auth/discord/failure"))
+                        .failureHandler((request, response, exception) -> response.sendRedirect("/api/auth/discord/failure"))
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 

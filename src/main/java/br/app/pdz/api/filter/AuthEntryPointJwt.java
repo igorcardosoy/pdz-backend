@@ -1,4 +1,4 @@
-package br.app.pdz.api.service.auth;
+package br.app.pdz.api.filter;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

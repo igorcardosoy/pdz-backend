@@ -6,5 +6,4 @@ public record JwtResponse(
         String username,
         java.util.List<String> roles
 ) {
-    static String type = "Bearer";
 }

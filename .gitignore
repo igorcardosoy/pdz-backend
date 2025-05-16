@@ -5,6 +5,8 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+
+/src/main/resources/images/profile_pics/**
 application.properties
 
 ### STS ###
@@ -37,3 +39,4 @@ out/
 
 ### VS Code ###
 .vscode/
+
