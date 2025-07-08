@@ -1,18 +1,22 @@
 package br.app.pdz.api.service;
 
+import br.app.pdz.api.dto.PasswordChangeRequest;
 import br.app.pdz.api.dto.ProfilePictureDTO;
 import br.app.pdz.api.dto.UserDTO;
+import br.app.pdz.api.exception.PasswordException;
 import br.app.pdz.api.exception.ProfilePictureException;
 import br.app.pdz.api.model.User;
 import br.app.pdz.api.exception.UserNotFoundException;
 import br.app.pdz.api.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,9 +33,11 @@ import java.util.UUID;
 public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserDTO loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -45,6 +51,18 @@ public class UserService implements UserDetailsService {
         Authentication authentication = securityContext.getAuthentication();
 
         return (UserDTO) authentication.getPrincipal();
+    }
+
+    public void changePassword(PasswordChangeRequest passwordChangeRequest) {
+
+        User user = userRepository.findByEmail(passwordChangeRequest.email()).orElseThrow(() -> new UserNotFoundException("User not found with email: " + passwordChangeRequest.email(), HttpStatus.NOT_FOUND));
+
+        if (!passwordEncoder.matches(passwordChangeRequest.oldPassword(), user.getPassword())) {
+            throw new PasswordException("Old password is incorrect", HttpStatus.BAD_REQUEST);
+        }
+
+        user.setPassword(passwordEncoder.encode(passwordChangeRequest.newPassword()));
+        userRepository.save(user);
     }
 
     public ProfilePictureDTO<?> getProfilePicture(UserDTO userDTO) throws IOException {

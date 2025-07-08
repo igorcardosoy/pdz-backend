@@ -1,8 +1,6 @@
 package br.app.pdz.api.service;
 
-import br.app.pdz.api.dto.JwtResponse;
-import br.app.pdz.api.dto.SignInRequest;
-import br.app.pdz.api.dto.SignUpRequest;
+import br.app.pdz.api.dto.*;
 import br.app.pdz.api.model.EnumRole;
 import br.app.pdz.api.model.Role;
 import br.app.pdz.api.model.User;
@@ -12,12 +10,10 @@ import br.app.pdz.api.exception.UserNotFoundException;
 import br.app.pdz.api.exception.UserNotInWhiteList;
 import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
-import br.app.pdz.api.dto.UserDTO;
 import br.app.pdz.api.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -43,17 +39,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final UserService userService;
+    private final WhitelistService whitelistService;
 
-    @Value("${pdz.api.whitelist}")
-    private List<String> whiteList;
-
-    public AuthService(JwtUtil jwtUtil, AuthenticationManager authenticationManager, UserRepository userRepository, PasswordEncoder passwordEncoder, RoleRepository roleRepository, UserService userService) {
+    public AuthService(JwtUtil jwtUtil, AuthenticationManager authenticationManager, UserRepository userRepository, PasswordEncoder passwordEncoder, RoleRepository roleRepository, UserService userService, WhitelistService whitelistService) {
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.roleRepository = roleRepository;
         this.userService = userService;
+        this.whitelistService = whitelistService;
     }
 
     public void verifyExistence(String username, String email) {
@@ -106,7 +101,6 @@ public class AuthService {
             } catch (IOException e) {
                 throw new UserNotFoundException("OAuth2 user is null", HttpStatus.BAD_REQUEST);
             }
-
             throw new UserNotFoundException("OAuth2 user is null", HttpStatus.BAD_REQUEST);
         }
 
@@ -126,8 +120,7 @@ public class AuthService {
                     return newUser;
                 });
 
-
-        if (whiteList.contains(user.getUsername())) {
+        if (whitelistService.isUserWhitelisted(user.getUsername())) {
             log.info("OAuth2 user is whitelisted: {}", user.getUsername());
         } else {
             log.warn("OAuth2 user is not whitelisted: {}", user.getUsername());
@@ -139,6 +132,44 @@ public class AuthService {
 
         log.info("OAuth2 user authenticated successfully: {}", user.getUsername());
         return jwtUtil.createJwtResponse(userService.loadUserByUsername(user.getUsername()));
+    }
+
+    public void addNewAdmin(AdmRequest admRequest) {
+        String username = admRequest.username();
+        String email = admRequest.email();
+
+        if (!userRepository.existsByUsernameAndEmail(username, email)) {
+            throw new UserNotFoundException("User not found with provided username and email", HttpStatus.NOT_FOUND);
+        }
+
+        User user = userRepository.findByUsernameAndEmail(username, email)
+                .orElseThrow(() -> new UserNotFoundException("User not found with provided username and email", HttpStatus.NOT_FOUND));
+
+        Role adminRole = roleRepository.findByName(EnumRole.ROLE_ADMIN)
+                .orElseThrow(() -> new RoleNotFoundException("Admin role not found", HttpStatus.NOT_FOUND));
+
+        if (user.getRoles().stream().anyMatch(role -> role.getName() == EnumRole.ROLE_ADMIN)) {
+            throw new IllegalArgumentException("User already has admin privileges");
+        }
+
+        user.getRoles().add(adminRole);
+        userRepository.save(user);
+
+        log.info("User {} has been granted admin privileges", username);
+
+    }
+
+    public List<String> getAllAdmins() {
+        List<User> admins = userRepository.findAll().stream()
+                .filter(user -> user.getRoles().stream().anyMatch(role -> role.getName() == EnumRole.ROLE_ADMIN))
+                .toList();
+
+        if (admins.isEmpty()) {
+            return List.of();
+        }
+
+        log.info("Retrieved list of admins: {}", admins);
+        return admins.stream().map(User::getUsername).toList();
     }
 
 }
