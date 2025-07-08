@@ -75,7 +75,8 @@ public class UserService implements UserDetailsService {
             );
         }
 
-        if (userDTO.getProfilePictureName() == null) throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
+        if (userDTO.getProfilePictureName() == null)
+            throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
 
 
         String uploadDir = "src/main/resources/images/profile_pics/";
@@ -88,8 +89,10 @@ public class UserService implements UserDetailsService {
     public void addProfilePicture(MultipartFile file, UserDTO userDTO) {
         User user = userRepository.findById(userDTO.getId()).orElseThrow(() -> new UserNotFoundException("User not found", HttpStatus.NOT_FOUND));
 
-        if (user.getDiscordId() != null) throw new ProfilePictureException("Discord users cannot upload profile pictures", HttpStatus.BAD_REQUEST);
-        if (user.getProfilePictureName() != null) throw new ProfilePictureException("User already has a profile picture", HttpStatus.BAD_REQUEST);
+        if (user.getDiscordId() != null)
+            throw new ProfilePictureException("Discord users cannot upload profile pictures", HttpStatus.BAD_REQUEST);
+        if (user.getProfilePictureName() != null)
+            throw new ProfilePictureException("User already has a profile picture", HttpStatus.BAD_REQUEST);
         if (file.isEmpty()) throw new ProfilePictureException("File is empty", HttpStatus.BAD_REQUEST);
 
         String uploadDir = "src/main/resources/images/profile_pics/";
@@ -101,8 +104,10 @@ public class UserService implements UserDetailsService {
     public void updateProfilePicture(MultipartFile file, UserDTO userDTO) {
         User user = userRepository.findById(userDTO.getId()).orElseThrow(() -> new UserNotFoundException("User not found", HttpStatus.NOT_FOUND));
 
-        if (user.getDiscordId() != null) throw new ProfilePictureException("Discord users cannot upload profile pictures", HttpStatus.BAD_REQUEST);
-        if (user.getProfilePictureName() == null) throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
+        if (user.getDiscordId() != null)
+            throw new ProfilePictureException("Discord users cannot upload profile pictures", HttpStatus.BAD_REQUEST);
+        if (user.getProfilePictureName() == null)
+            throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
         if (file.isEmpty()) throw new ProfilePictureException("File is empty", HttpStatus.BAD_REQUEST);
 
         deleteProfilePicture(userDTO);
@@ -115,8 +120,10 @@ public class UserService implements UserDetailsService {
 
     public void deleteProfilePicture(UserDTO userDTO) {
 
-        if (userDTO.getDiscordId() != null) throw new ProfilePictureException("Discord users cannot delete their profile picture", HttpStatus.BAD_REQUEST);
-        if (userDTO.getProfilePictureName() == null) throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
+        if (userDTO.getDiscordId() != null)
+            throw new ProfilePictureException("Discord users cannot delete their profile picture", HttpStatus.BAD_REQUEST);
+        if (userDTO.getProfilePictureName() == null)
+            throw new ProfilePictureException("User does not have a profile picture", HttpStatus.BAD_REQUEST);
 
         String uploadDir = "src/main/resources/images/profile_pics/";
         File file = new File(uploadDir + userDTO.getProfilePictureName());
@@ -154,4 +161,14 @@ public class UserService implements UserDetailsService {
     }
 
 
+    public void setPassword(String password, UserDTO userDTOSignedIn) {
+        if (userDTOSignedIn.getPassword() != null)
+            throw new PasswordException("User already has a password", HttpStatus.BAD_REQUEST);
+
+        User user = userRepository.findById(userDTOSignedIn.getId()).orElseThrow(() -> new UserNotFoundException("User not found", HttpStatus.NOT_FOUND));
+        user.setPassword(passwordEncoder.encode(password));
+
+        userRepository.save(user);
+        log.info("Password set successfully for user: {}", userDTOSignedIn.getUsername());
+    }
 }
