@@ -23,7 +23,7 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("/")
+    @GetMapping()
     public org.springframework.security.core.userdetails.UserDetails getUserDatails() {
         return userService.getUserDTOSignedIn();
     }

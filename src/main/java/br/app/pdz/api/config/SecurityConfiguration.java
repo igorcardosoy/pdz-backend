@@ -60,13 +60,13 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/oauth2/**").permitAll()
+                        .requestMatchers("/pdz-api/auth/**", "/pdz-api/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
                             request.getSession().setAttribute("user", authentication.getPrincipal());
-                            response.sendRedirect("/api/auth/discord/success");
+                            response.sendRedirect("/pdz-api/auth/discord/success");
                         })
                         .failureHandler((request, response, exception) -> response.sendRedirect("/api/auth/discord/failure"))
                 )
