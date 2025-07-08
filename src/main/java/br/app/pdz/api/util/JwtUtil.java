@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,7 +22,7 @@ public class JwtUtil {
 
     @Value("${pdz.api.jwtSecret}")
     private String jwtSecretStr;
-    private Key jwtSecret;
+    private SecretKey jwtSecret;
 
     @PostConstruct
     public void init() {
@@ -35,20 +35,20 @@ public class JwtUtil {
 
     public String generateJwtToken(UserDTO userDTO) {
         return Jwts.builder()
-                .setSubject(userDTO.getUsername())
+                .subject(userDTO.getUsername())
                 .claim("id", userDTO.getId())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
-                .signWith(jwtSecret, SignatureAlgorithm.HS512)
+                .issuedAt(new Date())
+                .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .signWith(jwtSecret)
                 .compact();
     }
 
     public String getUserNameFromJwtToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(jwtSecret)
+        return Jwts.parser()
+                .verifyWith(jwtSecret)
                 .build()
-                .parseClaimsJws(token)
-                .getBody()
+                .parseSignedClaims(token)
+                .getPayload()
                 .getSubject();
     }
 
@@ -68,10 +68,10 @@ public class JwtUtil {
     }
 
     public void validateJwtToken(String authToken) {
-        Jwts.parserBuilder()
-                .setSigningKey(jwtSecret)
+        Jwts.parser()
+                .verifyWith(jwtSecret)
                 .build()
-                .parseClaimsJws(authToken);
+                .parseSignedClaims(authToken);
     }
 
 }
