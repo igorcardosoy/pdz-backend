@@ -68,7 +68,7 @@ public class SecurityConfiguration {
                             request.getSession().setAttribute("user", authentication.getPrincipal());
                             response.sendRedirect("/pdz-api/auth/discord/success");
                         })
-                        .failureHandler((request, response, exception) -> response.sendRedirect("/api/auth/discord/failure"))
+                        .failureHandler((request, response, exception) -> response.sendRedirect("/pdz-api/auth/discord/failure"))
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 

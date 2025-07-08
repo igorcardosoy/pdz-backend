@@ -9,6 +9,7 @@ import br.app.pdz.api.model.User;
 import br.app.pdz.api.model.exception.RoleNotFoundException;
 import br.app.pdz.api.model.exception.UserAlreadyExistsException;
 import br.app.pdz.api.model.exception.UserNotFoundException;
+import br.app.pdz.api.model.exception.UserNotInWhiteList;
 import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
 import br.app.pdz.api.dto.UserDTO;
@@ -16,6 +17,7 @@ import br.app.pdz.api.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,6 +44,9 @@ public class AuthService {
     private final RoleRepository roleRepository;
     private final UserService userService;
 
+    @Value("${pdz.api.whitelist}")
+    private List<String> whiteList;
+
     public AuthService(JwtUtil jwtUtil, AuthenticationManager authenticationManager, UserRepository userRepository, PasswordEncoder passwordEncoder, RoleRepository roleRepository, UserService userService) {
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
@@ -51,8 +57,10 @@ public class AuthService {
     }
 
     public void verifyExistence(String username, String email) {
-        if (userRepository.existsByUsername(username)) throw new UserAlreadyExistsException("Username is already in use!", HttpStatus.BAD_REQUEST);
-        if (userRepository.existsByEmail(email)) throw new UserAlreadyExistsException("Email is already in use!", HttpStatus.BAD_REQUEST);
+        if (userRepository.existsByUsername(username))
+            throw new UserAlreadyExistsException("Username is already in use!", HttpStatus.BAD_REQUEST);
+        if (userRepository.existsByEmail(email))
+            throw new UserAlreadyExistsException("Email is already in use!", HttpStatus.BAD_REQUEST);
     }
 
     public void signUp(SignUpRequest signUpRequest) {
@@ -117,6 +125,14 @@ public class AuthService {
 
                     return newUser;
                 });
+
+
+        if (whiteList.contains(user.getUsername())) {
+            log.info("OAuth2 user is whitelisted: {}", user.getUsername());
+        } else {
+            log.warn("OAuth2 user is not whitelisted: {}", user.getUsername());
+            throw new UserNotInWhiteList("User is not whitelisted", HttpStatus.UNAUTHORIZED);
+        }
 
         user.setProfilePictureName(oAuth2User.getAttribute("avatar"));
         userRepository.save(user);
