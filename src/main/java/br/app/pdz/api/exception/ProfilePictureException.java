@@ -1,4 +1,4 @@
-package br.app.pdz.api.model.exception;
+package br.app.pdz.api.exception;
 
 import org.springframework.http.HttpStatus;
 
