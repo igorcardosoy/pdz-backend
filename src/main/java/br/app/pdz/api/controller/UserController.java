@@ -13,7 +13,7 @@ import java.io.IOException;
 
 @RestController
 @Log4j2
-@RequestMapping("/api/user")
+@RequestMapping("/pdz-api/users")
 @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
 public class UserController {
 
@@ -23,7 +23,7 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("/me")
+    @GetMapping("/")
     public org.springframework.security.core.userdetails.UserDetails getUserDatails() {
         return userService.getUserDTOSignedIn();
     }
