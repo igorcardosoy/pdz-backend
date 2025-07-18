@@ -62,6 +62,7 @@ public class JwtUtil {
         return new JwtResponse(
                 jwt,
                 userDTO.getId(),
+                userDTO.getDiscordId(),
                 userDTO.getUsername(),
                 roles
         );

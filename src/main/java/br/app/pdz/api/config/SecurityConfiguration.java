@@ -1,9 +1,12 @@
 package br.app.pdz.api.config;
 
+import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.filter.AuthTokenFilter;
 import br.app.pdz.api.filter.AuthEntryPointJwt;
+import br.app.pdz.api.service.AuthService;
 import br.app.pdz.api.service.UserService;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -17,8 +20,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.List;
 
 @Configuration
 @Log4j2
@@ -28,6 +34,9 @@ public class SecurityConfiguration {
     private final AuthEntryPointJwt authEntryPoint;
     private final AuthTokenFilter authTokenFilter;
     private final UserService userService;
+
+    @Value("${pdz.frontend.origin}")
+    private String frontend;
 
     public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService) {
         this.authEntryPoint = authEntryPoint;
@@ -53,9 +62,18 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, AuthService authService) throws Exception {
         http
-                .cors(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors
+                        .configurationSource(request -> {
+                            var corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
+                            corsConfiguration.setAllowedOrigins(List.of(frontend));
+                            corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                            corsConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+                            corsConfiguration.setAllowCredentials(true);
+                            return corsConfiguration;
+                        })
+                )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
@@ -66,9 +84,14 @@ public class SecurityConfiguration {
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
                             request.getSession().setAttribute("user", authentication.getPrincipal());
-                            response.sendRedirect("/pdz-api/auth/discord/success");
+
+                            DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
+                            JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
+
+                            response.sendRedirect(frontend + "/auth/success" + "?token=" + jwtResponse.token() + "&username=" + jwtResponse.username() + "&roles=" + jwtResponse.roles());
+
                         })
-                        .failureHandler((request, response, exception) -> response.sendRedirect("/pdz-api/auth/discord/failure"))
+                        .failureHandler((request, response, exception) -> response.sendRedirect(frontend + "/auth/failure"))
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
