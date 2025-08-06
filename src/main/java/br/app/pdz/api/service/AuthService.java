@@ -70,6 +70,13 @@ public class AuthService {
 
         roles.add(userRole.get());
 
+        if (userRepository.findAll().isEmpty()) {
+            Optional<Role>  adminRole = roleRepository.findByName(EnumRole.ROLE_ADMIN);
+            if (adminRole.isEmpty()) throw new RoleNotFoundException("Role is not found.", HttpStatus.NOT_FOUND);
+
+            roles.add(adminRole.get());
+        }
+
         User user = new User();
         user.setUsername(signUpRequest.username());
         user.setEmail(signUpRequest.email());
