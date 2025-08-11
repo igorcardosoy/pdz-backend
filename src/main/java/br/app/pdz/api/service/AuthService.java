@@ -63,12 +63,7 @@ public class AuthService {
 
         String encodedPassword = passwordEncoder.encode(signUpRequest.password());
 
-        Set<Role> roles = new HashSet<>();
-        Optional<Role> userRole = roleRepository.findByName(EnumRole.ROLE_USER);
-
-        if (userRole.isEmpty()) throw new RoleNotFoundException("Role is not found.", HttpStatus.NOT_FOUND);
-
-        roles.add(userRole.get());
+        Set<Role> roles = getRoles();
 
         if (userRepository.findAll().isEmpty()) {
             Optional<Role>  adminRole = roleRepository.findByName(EnumRole.ROLE_ADMIN);
@@ -115,17 +110,15 @@ public class AuthService {
 
         User user = userRepository.findByDiscordId(oAuth2User.getAttribute("id"))
                 .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setDiscordId(oAuth2User.getAttribute("id"));
-                    newUser.setUsername(oAuth2User.getAttribute("username"));
-                    newUser.setEmail(oAuth2User.getAttribute("email"));
 
-                    Set<Role> roles = new HashSet<>();
-                    roles.add(roleRepository.findByName(EnumRole.ROLE_USER).orElse(null));
-                    newUser.setRoles(roles);
+
+                    User newUser = userRepository.findByUsername(oAuth2User.getAttribute("username"))
+                        .orElse(createDiscordUser(oAuth2User));
+                    newUser.setDiscordId(oAuth2User.getAttribute("id"));
 
                     return newUser;
                 });
+
 
         if (whitelistService.isUserWhitelisted(user.getUsername())) {
             log.info("OAuth2 user is whitelisted: {}", user.getUsername());
@@ -177,6 +170,29 @@ public class AuthService {
 
         log.info("Retrieved list of admins: {}", admins);
         return admins.stream().map(User::getUsername).toList();
+    }
+
+    private User createDiscordUser(DefaultOAuth2User oAuth2User) {
+        User user = new User();
+        user.setUsername(oAuth2User.getAttribute("username"));
+        user.setEmail(oAuth2User.getAttribute("email"));
+        user.setProfilePictureName(oAuth2User.getAttribute("avatar"));
+
+        user.setRoles(getRoles());
+
+        return user;
+    }
+
+    private Set<Role> getRoles() {
+        Set<Role> roles = new HashSet<>();
+        Optional<Role> userRole = roleRepository.findByName(EnumRole.ROLE_USER);
+        if (userRole.isEmpty()) {
+            throw new RoleNotFoundException("Role is not found.", HttpStatus.NOT_FOUND);
+        }
+
+        roles.add(userRole.get());
+
+        return roles;
     }
 
 }
