@@ -90,6 +90,7 @@ public class SecurityConfiguration {
 
                             // Captura o parâmetro state que contém a URL de callback
                             String state = request.getParameter("state");
+                            log.info(state);
                             String callbackUrl = state != null ? state : frontend + "/auth/success";
 
                             String separator = callbackUrl.contains("?") ? "&" : "?";
