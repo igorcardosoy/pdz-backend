@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 
@@ -110,5 +111,15 @@ public class AuthController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @GetMapping("/auth/signin/discord")
+    public void discordLogin(@RequestParam(required = false) String callback,
+                             HttpServletRequest request,
+                             HttpServletResponse response) throws IOException {
+        if (callback != null && !callback.isEmpty()) {
+            request.getSession().setAttribute("oauth_callback", callback);
+        }
+        response.sendRedirect("/oauth2/authorization/discord");
     }
 }

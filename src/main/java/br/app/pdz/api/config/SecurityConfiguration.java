@@ -88,10 +88,13 @@ public class SecurityConfiguration {
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-                            // Captura o parâmetro state que contém a URL de callback
-                            String state = request.getParameter("state");
-                            log.info(state);
-                            String callbackUrl = state != null ? state : frontend + "/auth/success";
+                            String callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
+
+                            request.getSession().removeAttribute("oauth_callback");
+
+                            if (callbackUrl == null || callbackUrl.isEmpty()) {
+                                callbackUrl = frontend + "/auth/success";
+                            }
 
                             String separator = callbackUrl.contains("?") ? "&" : "?";
                             callbackUrl += separator + "token=" + jwtResponse.token() +
@@ -101,8 +104,13 @@ public class SecurityConfiguration {
                             response.sendRedirect(callbackUrl);
                         })
                         .failureHandler((request, response, exception) -> {
-                            String state = request.getParameter("state");
-                            String callbackUrl = state != null ? state : frontend + "/auth/failure";
+                            String callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
+                            request.getSession().removeAttribute("oauth_callback");
+
+                            if (callbackUrl == null || callbackUrl.isEmpty()) {
+                                callbackUrl = frontend + "/auth/failure";
+                            }
+
                             response.sendRedirect(callbackUrl);
                         })
                 )
