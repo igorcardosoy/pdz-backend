@@ -113,7 +113,7 @@ public class AuthController {
         }
     }
 
-    @GetMapping("/auth/signin/discord")
+    @GetMapping("/signin/discord")
     public void discordLogin(@RequestParam(required = false) String callback,
                              HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
