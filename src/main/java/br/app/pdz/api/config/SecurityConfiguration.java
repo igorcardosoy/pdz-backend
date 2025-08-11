@@ -90,6 +90,8 @@ public class SecurityConfiguration {
 
                             String callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
 
+                            log.info(callbackUrl);
+
                             request.getSession().removeAttribute("oauth_callback");
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
