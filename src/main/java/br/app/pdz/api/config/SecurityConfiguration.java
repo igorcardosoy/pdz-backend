@@ -88,10 +88,22 @@ public class SecurityConfiguration {
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-                            response.sendRedirect(frontend + "/auth/success" + "?token=" + jwtResponse.token() + "&username=" + jwtResponse.username() + "&roles=" + jwtResponse.roles());
+                            // Captura o parâmetro state que contém a URL de callback
+                            String state = request.getParameter("state");
+                            String callbackUrl = state != null ? state : frontend + "/auth/success";
 
+                            String separator = callbackUrl.contains("?") ? "&" : "?";
+                            callbackUrl += separator + "token=" + jwtResponse.token() +
+                                    "&username=" + jwtResponse.username() +
+                                    "&roles=" + jwtResponse.roles();
+
+                            response.sendRedirect(callbackUrl);
                         })
-                        .failureHandler((request, response, exception) -> response.sendRedirect(frontend + "/auth/failure"))
+                        .failureHandler((request, response, exception) -> {
+                            String state = request.getParameter("state");
+                            String callbackUrl = state != null ? state : frontend + "/auth/failure";
+                            response.sendRedirect(callbackUrl);
+                        })
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
