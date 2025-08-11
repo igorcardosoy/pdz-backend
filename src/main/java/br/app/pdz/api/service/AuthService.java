@@ -112,7 +112,7 @@ public class AuthService {
                 .orElseGet(() -> {
 
 
-                    User newUser = userRepository.findByEmail(oAuth2User.getAttribute("username"))
+                    User newUser = userRepository.findByEmail(oAuth2User.getAttribute("email"))
                         .orElse(createDiscordUser(oAuth2User));
                     newUser.setDiscordId(oAuth2User.getAttribute("id"));
 
