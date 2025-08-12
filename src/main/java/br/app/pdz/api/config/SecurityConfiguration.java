@@ -78,24 +78,48 @@ public class SecurityConfiguration {
                         })
                 )
                 .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                )
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/pdz-api/auth/**", "/pdz-api/oauth2/**").permitAll()
+                        .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
+                            log.info("OAuth2 Success Handler iniciado");
+
+                            // Debug do sessionId
+                            String sessionId = request.getSession().getId();
+                            log.info("Session ID no success handler: {}", sessionId);
+
                             request.getSession().setAttribute("user", authentication.getPrincipal());
 
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
+                            // Tenta recuperar o state parameter da requisição
+                            String stateParam = request.getParameter("state");
+                            log.info("State parameter encontrado: {}", stateParam);
 
-                            String sessionId = request.getSession().getId();
-                            String callbackUrl = callbackService.getAndRemoveCallback(sessionId);
+                            String callbackUrl = null;
 
-                            log.info("Callback URL encontrada: {}", callbackUrl);
+                            // Se temos um state parameter, usa ele para recuperar o callback
+                            if (stateParam != null && !stateParam.isEmpty()) {
+                                callbackUrl = callbackService.getAndRemoveCallback(stateParam);
+                                log.info("Callback recuperado usando state: {}", callbackUrl);
+                            }
+
+                            // Fallback: tenta usar sessionId se state não funcionou
+                            if (callbackUrl == null) {
+                                callbackUrl = callbackService.getAndRemoveCallback(sessionId);
+                                log.info("Callback recuperado usando sessionId: {}", callbackUrl);
+                            }
+
+                            log.info("Callback URL final: {}", callbackUrl);
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
                                 callbackUrl = frontend + "/auth/success";
@@ -106,12 +130,25 @@ public class SecurityConfiguration {
                                     "&username=" + jwtResponse.username() +
                                     "&roles=" + jwtResponse.roles();
 
+                            log.info("Redirecionando para: {}", callbackUrl);
                             response.sendRedirect(callbackUrl);
                         })
                         .failureHandler((request, response, exception) -> {
+                            log.error("OAuth2 falhou: {}", exception.getMessage());
 
-                            String sessionId = request.getSession().getId();
-                            String callbackUrl = callbackService.getAndRemoveCallback(sessionId);
+                            // Tenta recuperar callback usando state parameter primeiro
+                            String stateParam = request.getParameter("state");
+                            String callbackUrl = null;
+
+                            if (stateParam != null && !stateParam.isEmpty()) {
+                                callbackUrl = callbackService.getAndRemoveCallback(stateParam);
+                            }
+
+                            // Fallback para sessionId
+                            if (callbackUrl == null) {
+                                String sessionId = request.getSession().getId();
+                                callbackUrl = callbackService.getAndRemoveCallback(sessionId);
+                            }
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
                                 callbackUrl = frontend + "/auth/failure";

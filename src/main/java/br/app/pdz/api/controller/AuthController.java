@@ -121,11 +121,28 @@ public class AuthController {
                              HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
 
+        String sessionId = request.getSession().getId();
+        log.info("Endpoint /signin/discord chamado - Session ID: {}", sessionId);
+        log.info("Callback recebido: {}", callback);
+
+        // Gera um ID único para este fluxo de autenticação
+        String stateId = java.util.UUID.randomUUID().toString();
+
         if (callback != null && !callback.isEmpty()) {
-            String sessionId = request.getSession().getId();
-            callbackService.storeCallback(sessionId, callback);
+            // Usa o stateId em vez do sessionId
+            callbackService.storeCallback(stateId, callback);
+            log.info("Callback armazenado para state ID: {}", stateId);
+        } else {
+            log.info("Nenhum callback fornecido");
         }
 
-        response.sendRedirect("/oauth2/authorization/discord");
+        // Adiciona o stateId como parâmetro state na URL do OAuth2
+        String redirectUrl = "/oauth2/authorization/discord";
+        if (callback != null && !callback.isEmpty()) {
+            redirectUrl += "?state=" + stateId;
+        }
+
+        log.info("Redirecionando para: {}", redirectUrl);
+        response.sendRedirect(redirectUrl);
     }
 }
