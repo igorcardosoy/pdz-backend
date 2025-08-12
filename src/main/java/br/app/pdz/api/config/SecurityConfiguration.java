@@ -4,6 +4,7 @@ import br.app.pdz.api.dto.JwtResponse;
 import br.app.pdz.api.filter.AuthTokenFilter;
 import br.app.pdz.api.filter.AuthEntryPointJwt;
 import br.app.pdz.api.service.AuthService;
+import br.app.pdz.api.service.CallbackService;
 import br.app.pdz.api.service.UserService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,8 +25,6 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
@@ -36,14 +35,16 @@ public class SecurityConfiguration {
     private final AuthEntryPointJwt authEntryPoint;
     private final AuthTokenFilter authTokenFilter;
     private final UserService userService;
+    private final CallbackService callbackService;
 
     @Value("${pdz.frontend.origin}")
     private String frontend;
 
-    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService) {
+    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService, CallbackService callbackService) {
         this.authEntryPoint = authEntryPoint;
         this.authTokenFilter = authTokenFilter;
         this.userService = userService;
+        this.callbackService = callbackService;
     }
 
     @Bean
@@ -77,11 +78,7 @@ public class SecurityConfiguration {
                         })
                 )
                 .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(1)
-                        .maxSessionsPreventsLogin(false)
-                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/pdz-api/auth/**", "/pdz-api/oauth2/**").permitAll()
@@ -95,19 +92,8 @@ public class SecurityConfiguration {
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
 
-                            String callbackUrl = request.getParameter("state");
-
-                            if (callbackUrl == null) {
-                                callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
-                                request.getSession().removeAttribute("oauth_callback");
-                            } else {
-                                try {
-                                    callbackUrl = URLDecoder.decode(callbackUrl, StandardCharsets.UTF_8);
-                                } catch (Exception e) {
-                                    log.warn("Erro ao decodificar state: {}", callbackUrl, e);
-                                    callbackUrl = null;
-                                }
-                            }
+                            String sessionId = request.getSession().getId();
+                            String callbackUrl = callbackService.getAndRemoveCallback(sessionId);
 
                             log.info("Callback URL encontrada: {}", callbackUrl);
 
@@ -123,8 +109,9 @@ public class SecurityConfiguration {
                             response.sendRedirect(callbackUrl);
                         })
                         .failureHandler((request, response, exception) -> {
-                            String callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
-                            request.getSession().removeAttribute("oauth_callback");
+
+                            String sessionId = request.getSession().getId();
+                            String callbackUrl = callbackService.getAndRemoveCallback(sessionId);
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
                                 callbackUrl = frontend + "/auth/failure";

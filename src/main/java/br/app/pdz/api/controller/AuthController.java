@@ -3,6 +3,7 @@ package br.app.pdz.api.controller;
 import br.app.pdz.api.dto.*;
 import br.app.pdz.api.model.Whitelist;
 import br.app.pdz.api.service.AuthService;
+import br.app.pdz.api.service.CallbackService;
 import br.app.pdz.api.service.UserService;
 import br.app.pdz.api.service.WhitelistService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,8 +16,6 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 
@@ -28,11 +27,13 @@ public class AuthController {
     private final AuthService authService;
     private final WhitelistService whitelistService;
     private final UserService userService;
+    private final CallbackService callbackService;
 
-    public AuthController(AuthService authService, WhitelistService whitelistService, UserService userService) {
+    public AuthController(AuthService authService, WhitelistService whitelistService, UserService userService, CallbackService callbackService) {
         this.authService = authService;
         this.whitelistService = whitelistService;
         this.userService = userService;
+        this.callbackService = callbackService;
     }
 
     @PostMapping("/signin")
@@ -117,14 +118,14 @@ public class AuthController {
 
     @GetMapping("/signin/discord")
     public void discordLogin(@RequestParam(required = false) String callback,
+                             HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
-        String redirectUrl = "/oauth2/authorization/discord";
 
         if (callback != null && !callback.isEmpty()) {
-            String encodedCallback = URLEncoder.encode(callback, StandardCharsets.UTF_8);
-            redirectUrl += "?state=" + encodedCallback;
+            String sessionId = request.getSession().getId();
+            callbackService.storeCallback(sessionId, callback);
         }
 
-        response.sendRedirect(redirectUrl);
+        response.sendRedirect("/oauth2/authorization/discord");
     }
 }
