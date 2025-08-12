@@ -36,15 +36,17 @@ public class SecurityConfiguration {
     private final AuthTokenFilter authTokenFilter;
     private final UserService userService;
     private final CallbackService callbackService;
+    private final CustomAuthorizationRequestResolver customAuthorizationRequestResolver;
 
     @Value("${pdz.frontend.origin}")
     private String frontend;
 
-    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService, CallbackService callbackService) {
+    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService, CallbackService callbackService, CustomAuthorizationRequestResolver customAuthorizationRequestResolver) {
         this.authEntryPoint = authEntryPoint;
         this.authTokenFilter = authTokenFilter;
         this.userService = userService;
         this.callbackService = callbackService;
+        this.customAuthorizationRequestResolver = customAuthorizationRequestResolver;
     }
 
     @Bean
@@ -89,10 +91,12 @@ public class SecurityConfiguration {
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestResolver(customAuthorizationRequestResolver)
+                        )
                         .successHandler((request, response, authentication) -> {
                             log.info("OAuth2 Success Handler iniciado");
 
-                            // Debug do sessionId
                             String sessionId = request.getSession().getId();
                             log.info("Session ID no success handler: {}", sessionId);
 
@@ -101,22 +105,22 @@ public class SecurityConfiguration {
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-                            // Tenta recuperar o state parameter da requisição
-                            String stateParam = request.getParameter("state");
-                            log.info("State parameter encontrado: {}", stateParam);
+                            // Usa o state parameter original do Spring Security para recuperar o callback
+                            String originalState = request.getParameter("state");
+                            log.info("State parameter original encontrado: {}", originalState);
 
                             String callbackUrl = null;
 
-                            // Se temos um state parameter, usa ele para recuperar o callback
-                            if (stateParam != null && !stateParam.isEmpty()) {
-                                callbackUrl = callbackService.getAndRemoveCallback(stateParam);
-                                log.info("Callback recuperado usando state: {}", callbackUrl);
+                            // Tenta recuperar callback usando o mapeamento de states
+                            if (originalState != null && !originalState.isEmpty()) {
+                                callbackUrl = callbackService.getCallbackByOriginalState(originalState);
+                                log.info("Callback recuperado usando mapeamento de state: {}", callbackUrl);
                             }
 
                             // Fallback: tenta usar sessionId se state não funcionou
                             if (callbackUrl == null) {
                                 callbackUrl = callbackService.getAndRemoveCallback(sessionId);
-                                log.info("Callback recuperado usando sessionId: {}", callbackUrl);
+                                log.info("Callback recuperado usando sessionId (fallback): {}", callbackUrl);
                             }
 
                             log.info("Callback URL final: {}", callbackUrl);
@@ -136,15 +140,13 @@ public class SecurityConfiguration {
                         .failureHandler((request, response, exception) -> {
                             log.error("OAuth2 falhou: {}", exception.getMessage());
 
-                            // Tenta recuperar callback usando state parameter primeiro
-                            String stateParam = request.getParameter("state");
+                            String originalState = request.getParameter("state");
                             String callbackUrl = null;
 
-                            if (stateParam != null && !stateParam.isEmpty()) {
-                                callbackUrl = callbackService.getAndRemoveCallback(stateParam);
+                            if (originalState != null && !originalState.isEmpty()) {
+                                callbackUrl = callbackService.getCallbackByOriginalState(originalState);
                             }
 
-                            // Fallback para sessionId
                             if (callbackUrl == null) {
                                 String sessionId = request.getSession().getId();
                                 callbackUrl = callbackService.getAndRemoveCallback(sessionId);
