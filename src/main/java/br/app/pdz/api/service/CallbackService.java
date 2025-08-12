@@ -19,7 +19,6 @@ public class CallbackService {
         tempCallbacks.put(sessionId, callback);
         log.info("Total de callbacks armazenados: {}", tempCallbacks.size());
 
-        // Remove após 10 minutos para evitar vazamento de memória
         CompletableFuture.delayedExecutor(10, TimeUnit.MINUTES)
             .execute(() -> {
                 String removed = tempCallbacks.remove(sessionId);
@@ -38,7 +37,6 @@ public class CallbackService {
         log.info("Armazenando mapeamento de state - Original: {}, Custom: {}", originalState, customState);
         stateMapping.put(originalState, customState);
 
-        // Remove após 10 minutos
         CompletableFuture.delayedExecutor(10, TimeUnit.MINUTES)
             .execute(() -> {
                 String removed = stateMapping.remove(originalState);

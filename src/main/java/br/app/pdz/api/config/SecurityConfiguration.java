@@ -105,19 +105,16 @@ public class SecurityConfiguration {
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-                            // Usa o state parameter original do Spring Security para recuperar o callback
                             String originalState = request.getParameter("state");
                             log.info("State parameter original encontrado: {}", originalState);
 
                             String callbackUrl = null;
 
-                            // Tenta recuperar callback usando o mapeamento de states
                             if (originalState != null && !originalState.isEmpty()) {
                                 callbackUrl = callbackService.getCallbackByOriginalState(originalState);
                                 log.info("Callback recuperado usando mapeamento de state: {}", callbackUrl);
                             }
 
-                            // Fallback: tenta usar sessionId se state não funcionou
                             if (callbackUrl == null) {
                                 callbackUrl = callbackService.getAndRemoveCallback(sessionId);
                                 log.info("Callback recuperado usando sessionId (fallback): {}", callbackUrl);

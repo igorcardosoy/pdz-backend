@@ -28,7 +28,6 @@ public class UserController {
         return userService.getUserDTOSignedIn();
     }
 
-    // Apenas para usuario do discord, caso o usuario tenha sido criado via OAuth2 e queira definir uma senha.
     @PutMapping("/set-password")
     public ResponseEntity<String> setPassword(@RequestParam("password") String password) {
         userService.setPassword(password, userService.getUserDTOSignedIn());

@@ -49,14 +49,13 @@ public class CustomAuthorizationRequestResolver implements OAuth2AuthorizationRe
         if (customState != null && !customState.isEmpty()) {
             log.info("Personalizando authorization request com state customizado: {}", customState);
 
-            // Armazena o state original gerado pelo Spring Security associado ao nosso state customizado
             String originalState = authorizationRequest.getState();
             callbackService.storeStateMapping(originalState, customState);
 
             log.info("Mapeamento criado: {} -> {}", originalState, customState);
 
             return OAuth2AuthorizationRequest.from(authorizationRequest)
-                    .state(originalState) // Mantém o state original do Spring Security
+                    .state(originalState)
                     .build();
         }
 
