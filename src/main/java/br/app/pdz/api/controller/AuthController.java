@@ -118,6 +118,7 @@ public class AuthController {
                              HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
         if (callback != null && !callback.isEmpty()) {
+            log.info("Setting OAuth callback URL: {}", callback);
             request.getSession().setAttribute("oauth_callback", callback);
         }
         response.sendRedirect("/oauth2/authorization/discord");
