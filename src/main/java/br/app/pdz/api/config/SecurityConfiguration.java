@@ -24,6 +24,8 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
@@ -92,11 +94,22 @@ public class SecurityConfiguration {
                             DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
                             JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
 
-                            String callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
 
-                            log.info(callbackUrl);
+                            String callbackUrl = request.getParameter("state");
 
-                            request.getSession().removeAttribute("oauth_callback");
+                            if (callbackUrl == null) {
+                                callbackUrl = (String) request.getSession().getAttribute("oauth_callback");
+                                request.getSession().removeAttribute("oauth_callback");
+                            } else {
+                                try {
+                                    callbackUrl = URLDecoder.decode(callbackUrl, StandardCharsets.UTF_8);
+                                } catch (Exception e) {
+                                    log.warn("Erro ao decodificar state: {}", callbackUrl, e);
+                                    callbackUrl = null;
+                                }
+                            }
+
+                            log.info("Callback URL encontrada: {}", callbackUrl);
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
                                 callbackUrl = frontend + "/auth/success";

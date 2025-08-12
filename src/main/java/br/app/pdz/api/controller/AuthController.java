@@ -15,6 +15,8 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 
@@ -115,12 +117,14 @@ public class AuthController {
 
     @GetMapping("/signin/discord")
     public void discordLogin(@RequestParam(required = false) String callback,
-                             HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
+        String redirectUrl = "/oauth2/authorization/discord";
+
         if (callback != null && !callback.isEmpty()) {
-            log.info("Setting OAuth callback URL: {}", callback);
-            request.getSession().setAttribute("oauth_callback", callback);
+            String encodedCallback = URLEncoder.encode(callback, StandardCharsets.UTF_8);
+            redirectUrl += "?state=" + encodedCallback;
         }
-        response.sendRedirect("/oauth2/authorization/discord");
+
+        response.sendRedirect(redirectUrl);
     }
 }
