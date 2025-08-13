@@ -39,7 +39,7 @@ public class SecurityConfiguration {
     private final CustomAuthorizationRequestResolver customAuthorizationRequestResolver;
 
     @Value("${pdz.frontend.origin}")
-    private String frontend;
+    private List<String> frontendOrigins;
 
     public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService, CallbackService callbackService, CustomAuthorizationRequestResolver customAuthorizationRequestResolver) {
         this.authEntryPoint = authEntryPoint;
@@ -72,7 +72,7 @@ public class SecurityConfiguration {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             var corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
-                            corsConfiguration.setAllowedOrigins(List.of(frontend));
+                            corsConfiguration.setAllowedOrigins(frontendOrigins);
                             corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                             corsConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
                             corsConfiguration.setAllowCredentials(true);
@@ -123,7 +123,7 @@ public class SecurityConfiguration {
                             log.info("Callback URL final: {}", callbackUrl);
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
-                                callbackUrl = frontend + "/auth/success";
+                                callbackUrl = frontendOrigins.getFirst() + "/auth/success";
                             }
 
                             String separator = callbackUrl.contains("?") ? "&" : "?";
@@ -150,7 +150,7 @@ public class SecurityConfiguration {
                             }
 
                             if (callbackUrl == null || callbackUrl.isEmpty()) {
-                                callbackUrl = frontend + "/auth/failure";
+                                callbackUrl = frontendOrigins.getFirst() + "/auth/failure";
                             }
 
                             response.sendRedirect(callbackUrl);
