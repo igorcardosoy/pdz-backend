@@ -87,7 +87,7 @@ public class SecurityConfiguration {
                 )
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**", "/pdz-api/videos").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
