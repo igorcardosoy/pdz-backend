@@ -44,6 +44,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequest signUpRequest) {
         authService.signUp(signUpRequest);
 
