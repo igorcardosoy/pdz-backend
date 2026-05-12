@@ -30,7 +30,7 @@ public class MineCodeController {
 
     }
 
-    @PostMapping("/create_account")
+    @PostMapping("/create-account")
     public ResponseEntity<String> createAccount(@RequestBody MineAccountRequest mineAccountRequest) throws IOException {
         mineCodeService.createMineAccount(mineAccountRequest);
         return ResponseEntity.ok("Account created successfully");
