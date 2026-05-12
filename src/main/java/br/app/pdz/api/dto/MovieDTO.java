@@ -13,6 +13,12 @@ public class MovieDTO {
     @JsonProperty("Title")
     private String title;
 
+    @JsonProperty("Titles")
+    private List<String> titles;
+
+    @JsonProperty("Providers")
+    private List<String> providers;
+
     @JsonProperty("Description")
     private String description;
 
@@ -49,4 +55,3 @@ public class MovieDTO {
     @JsonProperty("MagnetUri")
     private String magnetUri;
 }
-
