@@ -44,7 +44,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-//    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequest signUpRequest) {
         authService.signUp(signUpRequest);
 
@@ -71,7 +71,7 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Error: Discord authentication failed.");
     }
 
-    @PostMapping("/whitelist/add")
+    @PostMapping("/whitelist")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> addToWhitelist(@RequestBody WhitelistRequest whitelistRequest, Principal principal) {
         try {
@@ -82,7 +82,7 @@ public class AuthController {
         }
     }
 
-    @DeleteMapping("/whitelist/remove")
+    @DeleteMapping("/whitelist")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> removeFromWhitelist(@RequestBody WhitelistRequest whitelistRequest) {
         try {
