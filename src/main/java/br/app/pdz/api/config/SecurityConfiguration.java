@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -98,6 +99,8 @@ public class SecurityConfiguration {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/pdz-api/mine-codes/accounts").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/pdz-api/mine-codes/code-2AF").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth

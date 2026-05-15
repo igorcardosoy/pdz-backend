@@ -19,4 +19,7 @@ public class MineAccount {
 
         @Column(unique = true)
         private String secretKey;
+
+        @Column(unique = true)
+        private String password;
 }

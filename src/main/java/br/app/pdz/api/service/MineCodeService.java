@@ -1,5 +1,6 @@
 package br.app.pdz.api.service;
 
+import br.app.pdz.api.dto.MineAccountCredentialsDTO;
 import br.app.pdz.api.dto.MineAccountRequest;
 import br.app.pdz.api.dto.MineEmailRequest;
 import br.app.pdz.api.dto.MineCodeDTO;
@@ -10,6 +11,8 @@ import com.bastiaanjansen.otp.TOTPGenerator;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class MineCodeService {
@@ -52,5 +55,14 @@ public class MineCodeService {
         } catch (Exception e) {
             throw new RuntimeException("Error generating TOTP", e);
         }
+    }
+
+    public List<MineAccountCredentialsDTO> getAllAccountCredentials() {
+        List<MineAccount> accounts = mineAccountRepository.findAll();
+
+        // Converte a entidade do banco para o DTO que contém apenas email e senha
+        return accounts.stream()
+                .map(account -> new MineAccountCredentialsDTO(account.getEmail(), account.getPassword()))
+                .collect(Collectors.toList());
     }
 }

@@ -1,6 +1,7 @@
 package br.app.pdz.api.controller;
 
 
+import br.app.pdz.api.dto.MineAccountCredentialsDTO;
 import br.app.pdz.api.dto.MineAccountRequest;
 import br.app.pdz.api.dto.MineEmailRequest;
 import br.app.pdz.api.dto.MineCodeDTO;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -22,7 +24,7 @@ public class MineCodeController {
         this.mineCodeService = mineCodeService;
     }
 
-    @GetMapping("/code-2AF")
+    @PostMapping("/code-2AF")
     public ResponseEntity<MineCodeDTO> get2AFCode(@RequestBody MineEmailRequest mineEmailRequest) throws IOException {
         MineCodeDTO code = mineCodeService.get2AFCode(mineEmailRequest);
 
@@ -34,5 +36,11 @@ public class MineCodeController {
     public ResponseEntity<String> createAccount(@RequestBody MineAccountRequest mineAccountRequest) throws IOException {
         mineCodeService.createMineAccount(mineAccountRequest);
         return ResponseEntity.ok("Account created successfully");
+    }
+
+    @GetMapping("/accounts")
+    public ResponseEntity<List<MineAccountCredentialsDTO>> getAllAccounts() {
+        List<MineAccountCredentialsDTO> accounts = mineCodeService.getAllAccountCredentials();
+        return ResponseEntity.ok(accounts);
     }
 }
