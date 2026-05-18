@@ -109,6 +109,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/pdz-api/mine-codes/accounts").permitAll()
                         .requestMatchers(HttpMethod.POST, "/pdz-api/mine-codes/code-2AF").permitAll()
+                        .requestMatchers("/pdz-api/debug/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
@@ -123,24 +124,35 @@ public class SecurityConfiguration {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
-        OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(issuerUri);
-        OAuth2TokenValidator<Jwt> audienceValidator = token -> {
-            List<String> audiences = token.getAudience();
-            if (audiences != null && audiences.contains(audience)) {
-                return OAuth2TokenValidatorResult.success();
-            }
+        try {
+            log.info("Inicializando JwtDecoder com issuer-uri: {}, audience: {}", issuerUri, audience);
+            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
+            OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(issuerUri);
+            OAuth2TokenValidator<Jwt> audienceValidator = token -> {
+                List<String> audiences = token.getAudience();
+                log.debug("Token audience: {}, esperado: {}", audiences, audience);
+                if (audiences != null && audiences.contains(audience)) {
+                    log.debug("Audience válida");
+                    return OAuth2TokenValidatorResult.success();
+                }
 
-            OAuth2Error error = new OAuth2Error(
-                    "invalid_token",
-                    "Token does not contain the required audience",
-                    null
-            );
-            return OAuth2TokenValidatorResult.failure(error);
-        };
+                String errorMsg = "Token does not contain the required audience. Expected: [" + audience + "], got: " + audiences;
+                log.warn("Audience inválida: {}", errorMsg);
+                OAuth2Error error = new OAuth2Error(
+                        "invalid_token",
+                        errorMsg,
+                        null
+                );
+                return OAuth2TokenValidatorResult.failure(error);
+            };
 
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
-        return decoder;
+            decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
+            log.info("JwtDecoder inicializado com sucesso");
+            return decoder;
+        } catch (Exception e) {
+            log.error("Erro ao inicializar JwtDecoder", e);
+            throw new RuntimeException("Failed to initialize JwtDecoder", e);
+        }
     }
 
     @Bean
