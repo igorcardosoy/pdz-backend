@@ -5,8 +5,12 @@ import br.app.pdz.api.dto.ProfilePictureDTO;
 import br.app.pdz.api.dto.UserDTO;
 import br.app.pdz.api.exception.PasswordException;
 import br.app.pdz.api.exception.ProfilePictureException;
+import br.app.pdz.api.exception.RoleNotFoundException;
 import br.app.pdz.api.model.User;
+import br.app.pdz.api.model.EnumRole;
+import br.app.pdz.api.model.Role;
 import br.app.pdz.api.exception.UserNotFoundException;
+import br.app.pdz.api.repository.RoleRepository;
 import br.app.pdz.api.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -17,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +31,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -33,10 +41,12 @@ import java.util.UUID;
 public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, RoleRepository roleRepository, @Lazy PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -50,7 +60,21 @@ public class UserService implements UserDetailsService {
         SecurityContext securityContext = SecurityContextHolder.getContext();
         Authentication authentication = securityContext.getAuthentication();
 
-        return (UserDTO) authentication.getPrincipal();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new UserNotFoundException("Authenticated user not found", HttpStatus.UNAUTHORIZED);
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDTO userDTO) {
+            return userDTO;
+        }
+
+        if (principal instanceof Jwt jwt) {
+            User user = resolveOrCreateUserFromJwt(jwt);
+            return UserDTO.build(user);
+        }
+
+        throw new UserNotFoundException("Unsupported authentication principal", HttpStatus.UNAUTHORIZED);
     }
 
     public void changePassword(PasswordChangeRequest passwordChangeRequest) {
@@ -68,6 +92,15 @@ public class UserService implements UserDetailsService {
     public ProfilePictureDTO<?> getProfilePicture(UserDTO userDTO) throws IOException {
         if (userDTO.getDiscordId() != null) {
             String avatarUrl = "https://cdn.discordapp.com/avatars/" + userDTO.getDiscordId() + "/" + userDTO.getProfilePictureName() + ".png";
+            return new ProfilePictureDTO<>(
+                    avatarUrl,
+                    "text/plain",
+                    String.valueOf(avatarUrl.length())
+            );
+        }
+
+        if (userDTO.getProfilePictureName() != null && (userDTO.getProfilePictureName().startsWith("https://") || userDTO.getProfilePictureName().startsWith("http://"))) {
+            String avatarUrl = userDTO.getProfilePictureName();
             return new ProfilePictureDTO<>(
                     avatarUrl,
                     "text/plain",
@@ -170,5 +203,133 @@ public class UserService implements UserDetailsService {
 
         userRepository.save(user);
         log.info("Password set successfully for user: {}", userDTOSignedIn.getUsername());
+    }
+
+    private User resolveOrCreateUserFromJwt(Jwt jwt) {
+        String subject = jwt.getSubject();
+        if (subject == null || subject.isBlank()) {
+            throw new UserNotFoundException("JWT subject is missing", HttpStatus.UNAUTHORIZED);
+        }
+
+        Optional<User> existingBySubject = userRepository.findByExternalId(subject);
+        if (existingBySubject.isPresent()) {
+            return syncUserData(existingBySubject.get(), jwt);
+        }
+
+        String email = jwt.getClaimAsString("email");
+        if (email != null && !email.isBlank()) {
+            Optional<User> existingByEmail = userRepository.findByEmail(email);
+            if (existingByEmail.isPresent()) {
+                User user = existingByEmail.get();
+                user.setExternalId(subject);
+                return syncUserData(user, jwt);
+            }
+        }
+
+        Role userRole = roleRepository.findByName(EnumRole.ROLE_USER)
+                .orElseThrow(() -> new RoleNotFoundException("Role is not found.", HttpStatus.NOT_FOUND));
+
+        User user = new User();
+        user.setExternalId(subject);
+        user.setEmail((email == null || email.isBlank()) ? null : email);
+        user.setUsername(generateUniqueUsername(extractPreferredUsername(jwt)));
+        user.setProfilePictureName(jwt.getClaimAsString("picture"));
+        user.setRoles(new HashSet<>(java.util.Set.of(userRole)));
+
+        return userRepository.save(user);
+    }
+
+    private User syncUserData(User user, Jwt jwt) {
+        boolean changed = false;
+
+        String preferredUsername = extractPreferredUsername(jwt);
+        if (preferredUsername != null && !preferredUsername.equals(user.getUsername())) {
+            String uniqueUsername = generateUniqueUsername(preferredUsername, user.getId());
+            if (!uniqueUsername.equals(user.getUsername())) {
+                user.setUsername(uniqueUsername);
+                changed = true;
+            }
+        }
+
+        String email = jwt.getClaimAsString("email");
+        if (email != null && !email.isBlank() && !email.equals(user.getEmail())) {
+            user.setEmail(email);
+            changed = true;
+        }
+
+        String picture = jwt.getClaimAsString("picture");
+        if (picture != null && !picture.isBlank() && !picture.equals(user.getProfilePictureName())) {
+            user.setProfilePictureName(picture);
+            changed = true;
+        }
+
+        if (changed) {
+            return userRepository.save(user);
+        }
+
+        return user;
+    }
+
+    private String extractPreferredUsername(Jwt jwt) {
+        String preferred = firstNonBlank(
+                jwt.getClaimAsString("username"),
+                jwt.getClaimAsString("preferred_username"),
+                jwt.getClaimAsString("name"),
+                extractUsernameFromEmail(jwt.getClaimAsString("email")),
+                "user_" + shortSub(jwt.getSubject())
+        );
+        return sanitizeUsername(preferred);
+    }
+
+    private String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return "user";
+    }
+
+    private String extractUsernameFromEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return null;
+        }
+        return email.substring(0, email.indexOf('@'));
+    }
+
+    private String shortSub(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return UUID.randomUUID().toString().substring(0, 8);
+        }
+        return subject.length() <= 8 ? subject : subject.substring(0, 8);
+    }
+
+    private String sanitizeUsername(String value) {
+        String sanitized = value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9._-]", "-");
+        sanitized = sanitized.replaceAll("-+", "-").replaceAll("(^-|-$)", "");
+        if (sanitized.isBlank()) {
+            return "user";
+        }
+        return sanitized;
+    }
+
+    private String generateUniqueUsername(String baseUsername) {
+        return generateUniqueUsername(baseUsername, null);
+    }
+
+    private String generateUniqueUsername(String baseUsername, Long currentUserId) {
+        String base = baseUsername;
+        int suffix = 1;
+        String candidate = base;
+
+        while (true) {
+            boolean exists = currentUserId == null
+                    ? userRepository.existsByUsername(candidate)
+                    : userRepository.existsByUsernameAndIdNot(candidate, currentUserId);
+            if (!exists) {
+                return candidate;
+            }
+            candidate = base + "-" + suffix++;
+        }
     }
 }

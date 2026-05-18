@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/pdz-api/videos")
-@PreAuthorize("hasAnyRole('USER', 'MODERATOR', 'ADMIN')")
+//@PreAuthorize("hasAnyRole('USER', 'MODERATOR', 'ADMIN')")
 public class VideoDownloaderController {
 
     private final VideoDownloaderService videoDownloaderService;
