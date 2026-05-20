@@ -12,9 +12,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByDiscordId(String discordId);
 
+    Optional<User> findByExternalId(String externalId);
+
     Boolean existsByUsername(String username);
 
     Boolean existsByUsernameAndEmail(String username, String email);
+
+    Boolean existsByUsernameAndIdNot(String username, Long id);
 
     Boolean existsByEmail(String email);
 

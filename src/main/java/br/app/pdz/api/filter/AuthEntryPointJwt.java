@@ -17,8 +17,10 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException {
         String uri = request.getRequestURI();
         if (uri.equals("/favicon.ico") || uri.equals("/error")) return;
+        String authHeader = request.getHeader("Authorization");
 
-        log.error("Unauthorized error: {}, in request: {}", authException.getMessage(), request.getRequestURI());
+        log.error("Unauthorized error: {}, in request: {}", authException.getMessage(), uri);
+        log.error("Auth Header: {}", authHeader == null ? "MISSING" : "PRESENT");
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Error: Unauthorized");
     }
 }

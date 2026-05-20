@@ -1,69 +1,55 @@
 package br.app.pdz.api.controller;
 
-import br.app.pdz.api.dto.ProfilePictureDTO;
-import br.app.pdz.api.service.UserService;
+import br.app.pdz.api.dto.LogtoUserProfileDTO;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
+import java.util.List;
 
 @RestController
 @Log4j2
 @RequestMapping("/pdz-api/users")
 @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
 public class UserController {
+    @GetMapping("/me")
+    public ResponseEntity<LogtoUserProfileDTO> me(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+            return ResponseEntity.status(401).build();
+        }
 
-    private final UserService userService;
+        String username = firstNonBlank(
+            jwt.getClaimAsString("username"),
+            jwt.getClaimAsString("name"),
+            jwt.getSubject()
+        );
 
-    public UserController(UserService userService) {
-        this.userService = userService;
+        List<String> roles = authentication.getAuthorities().stream()
+            .map(authority -> authority.getAuthority())
+            .toList();
+
+        LogtoUserProfileDTO profile = new LogtoUserProfileDTO(
+            jwt.getSubject(),
+            username,
+            jwt.getClaimAsString("email"),
+            jwt.getClaimAsString("picture"),
+            roles
+        );
+
+        return ResponseEntity.ok(profile);
     }
 
-    @GetMapping()
-    public org.springframework.security.core.userdetails.UserDetails getUserDatails() {
-        return userService.getUserDTOSignedIn();
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
-
-    @PutMapping("/set-password")
-    public ResponseEntity<String> setPassword(@RequestParam("password") String password) {
-        userService.setPassword(password, userService.getUserDTOSignedIn());
-        return ResponseEntity.ok("Success: Password set successfully");
-    }
-
-    @GetMapping("/profile-picture")
-    public ResponseEntity<?> getProfilePicture() throws IOException {
-        ProfilePictureDTO<?> profilePictureDTO = userService.getProfilePicture(userService.getUserDTOSignedIn());
-
-        return ResponseEntity.ok()
-                .header("Content-Type", profilePictureDTO.contentType())
-                .header("Content-Length", profilePictureDTO.length())
-                .body(profilePictureDTO.profilePicture());
-
-    }
-
-    @PostMapping("/profile-picture")
-    public ResponseEntity<String> uploadProfilePicture(@RequestParam("profilePicture") MultipartFile file) {
-        userService.addProfilePicture(file, userService.getUserDTOSignedIn());
-
-        return ResponseEntity.status(HttpStatus.CREATED).body("Success: Profile picture uploaded successfully");
-    }
-
-    @PutMapping("/profile-picture")
-    public ResponseEntity<String> updateProfilePicture(@RequestParam("profilePicture") MultipartFile file) {
-        userService.updateProfilePicture(file, userService.getUserDTOSignedIn());
-
-        return ResponseEntity.ok("Success: Profile picture updated successfully");
-    }
-
-    @DeleteMapping("/profile-picture")
-    public ResponseEntity<String> deleteProfilePicture() {
-        userService.deleteProfilePicture(userService.getUserDTOSignedIn());
-
-        return ResponseEntity.ok("Success: Profile picture deleted successfully");
-    }
-
 }

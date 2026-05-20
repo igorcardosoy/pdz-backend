@@ -27,6 +27,9 @@ public class User {
     @Column(unique = true)
     private String discordId;
 
+    @Column(unique = true)
+    private String externalId;
+
     private String profilePictureName;
 
     @ManyToMany(fetch = FetchType.EAGER)

@@ -1,20 +1,11 @@
 package br.app.pdz.api.config;
 
-import br.app.pdz.api.dto.JwtResponse;
-import br.app.pdz.api.filter.AuthTokenFilter;
 import br.app.pdz.api.filter.AuthEntryPointJwt;
-import br.app.pdz.api.service.AuthService;
-import br.app.pdz.api.service.CallbackService;
-import br.app.pdz.api.service.UserService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,12 +13,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-
 import java.util.List;
 
 @Configuration
@@ -36,20 +23,14 @@ import java.util.List;
 @EnableMethodSecurity()
 public class SecurityConfiguration {
     private final AuthEntryPointJwt authEntryPoint;
-    private final AuthTokenFilter authTokenFilter;
-    private final UserService userService;
-    private final CallbackService callbackService;
-    private final CustomAuthorizationRequestResolver customAuthorizationRequestResolver;
+    private final JwtAuthenticationConverter jwtAuthenticationConverter;
 
     @Value("${pdz.frontend.origin}")
     private List<String> frontendOrigins;
 
-    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, AuthTokenFilter authTokenFilter, UserService userService, CallbackService callbackService, CustomAuthorizationRequestResolver customAuthorizationRequestResolver) {
+    public SecurityConfiguration(AuthEntryPointJwt authEntryPoint, JwtAuthenticationConverter jwtAuthenticationConverter) {
         this.authEntryPoint = authEntryPoint;
-        this.authTokenFilter = authTokenFilter;
-        this.userService = userService;
-        this.callbackService = callbackService;
-        this.customAuthorizationRequestResolver = customAuthorizationRequestResolver;
+        this.jwtAuthenticationConverter = jwtAuthenticationConverter;
     }
 
     @Bean
@@ -58,27 +39,7 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    @Primary
-    public AuthenticationManagerBuilder configureAuthenticationManagerBuilder(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
-        authenticationManagerBuilder.userDetailsService(userService).passwordEncoder(passwordEncoder());
-        return authenticationManagerBuilder;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
-    }
-
-    @Bean
-    public RestTemplate restTemplate() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(30000);
-        factory.setReadTimeout(120000);
-        return new RestTemplate(factory);
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, AuthService authService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors
                         .configurationSource(request -> {
@@ -92,84 +53,18 @@ public class SecurityConfiguration {
                 )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(1)
-                        .maxSessionsPreventsLogin(false)
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/pdz-api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/error", "/favicon.ico").permitAll()
                         .requestMatchers(HttpMethod.GET, "/pdz-api/mine-codes/accounts").permitAll()
                         .requestMatchers(HttpMethod.POST, "/pdz-api/mine-codes/code-2AF").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth -> oauth
-                        .authorizationEndpoint(authorization -> authorization
-                                .authorizationRequestResolver(customAuthorizationRequestResolver)
-                        )
-                        .successHandler((request, response, authentication) -> {
-                            log.info("OAuth2 Success Handler iniciado");
-
-                            String sessionId = request.getSession().getId();
-                            log.info("Session ID no success handler: {}", sessionId);
-
-                            request.getSession().setAttribute("user", authentication.getPrincipal());
-
-                            DefaultOAuth2User oAuth2User = (DefaultOAuth2User) request.getSession().getAttribute("user");
-                            JwtResponse jwtResponse = authService.handleOAuth2SignIn(oAuth2User, request, response);
-
-                            String originalState = request.getParameter("state");
-                            log.info("State parameter original encontrado: {}", originalState);
-
-                            String callbackUrl = null;
-
-                            if (originalState != null && !originalState.isEmpty()) {
-                                callbackUrl = callbackService.getCallbackByOriginalState(originalState);
-                                log.info("Callback recuperado usando mapeamento de state: {}", callbackUrl);
-                            }
-
-                            if (callbackUrl == null) {
-                                callbackUrl = callbackService.getAndRemoveCallback(sessionId);
-                                log.info("Callback recuperado usando sessionId (fallback): {}", callbackUrl);
-                            }
-
-                            log.info("Callback URL final: {}", callbackUrl);
-
-                            if (callbackUrl == null || callbackUrl.isEmpty()) {
-                                callbackUrl = frontendOrigins.getFirst() + "/auth/success";
-                            }
-
-                            String separator = callbackUrl.contains("?") ? "&" : "?";
-                            callbackUrl += separator + "token=" + jwtResponse.token() +
-                                    "&username=" + jwtResponse.username() +
-                                    "&roles=" + jwtResponse.roles();
-
-                            log.info("Redirecionando para: {}", callbackUrl);
-                            response.sendRedirect(callbackUrl);
-                        })
-                        .failureHandler((request, response, exception) -> {
-                            log.error("OAuth2 falhou: {}", exception.getMessage());
-
-                            String originalState = request.getParameter("state");
-                            String callbackUrl = null;
-
-                            if (originalState != null && !originalState.isEmpty()) {
-                                callbackUrl = callbackService.getCallbackByOriginalState(originalState);
-                            }
-
-                            if (callbackUrl == null) {
-                                String sessionId = request.getSession().getId();
-                                callbackUrl = callbackService.getAndRemoveCallback(sessionId);
-                            }
-
-                            if (callbackUrl == null || callbackUrl.isEmpty()) {
-                                callbackUrl = frontendOrigins.getFirst() + "/auth/failure";
-                            }
-
-                            response.sendRedirect(callbackUrl);
-                        })
-                )
-                .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                );
 
         return http.build();
     }
