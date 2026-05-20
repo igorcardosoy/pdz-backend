@@ -2,6 +2,12 @@ name: Deploy API
 
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: true
+        default: main
+        type: string
 
 jobs:
   deploy:
@@ -9,18 +15,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do repositório
+      - name: Checkout branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
+          host: ${{ vars.SERVER_HOST }}
+          port: ${{ vars.SERVER_PORT }}
+          username: ${{ vars.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd ${{ secrets.SERVER_APP_PATH }}
-            git pull
+            set -euo pipefail
+            cd "${{ vars.SERVER_APP_PATH }}"
+            git fetch origin "${{ inputs.branch }}"
+            if git show-ref --verify --quiet "refs/heads/${{ inputs.branch }}"; then
+              git switch "${{ inputs.branch }}"
+            else
+              git switch -c "${{ inputs.branch }}" --track "origin/${{ inputs.branch }}"
+            fi
+            git pull origin "${{ inputs.branch }}"
+
+            cat > .env <<EOF
+            SPRING_DATASOURCE_URL=${{ vars.SPRING_DATASOURCE_URL }}
+            SPRING_DATASOURCE_USERNAME=${{ vars.SPRING_DATASOURCE_USERNAME }}
+            SPRING_DATASOURCE_PASSWORD=${{ vars.SPRING_DATASOURCE_PASSWORD }}
+            LOGTO_ISSUER_URI=${{ vars.LOGTO_ISSUER_URI }}
+            LOGTO_AUDIENCE=${{ vars.LOGTO_AUDIENCE }}
+            LOGTO_ROLES_CLAIM=${{ vars.LOGTO_ROLES_CLAIM }}
+            PDZ_FRONTEND_ORIGINS=${{ vars.PDZ_FRONTEND_ORIGINS }}
+            JACKETT_API_URL=${{ vars.JACKETT_API_URL }}
+            JACKETT_API_KEY=${{ vars.JACKETT_API_KEY }}
+            JACKETT_EXCLUDED_CATEGORIES=${{ vars.JACKETT_EXCLUDED_CATEGORIES }}
+            EOF
+
             ./mvnw clean package -DskipTests
-            systemctl restart ${{ secrets.SERVER_SERVICE_NAME }}
+            systemctl restart "${{ vars.SERVER_SERVICE_NAME }}"

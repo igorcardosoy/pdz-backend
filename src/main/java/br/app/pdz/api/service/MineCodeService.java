@@ -58,9 +58,7 @@ public class MineCodeService {
     }
 
     public List<MineAccountCredentialsDTO> getAllAccountCredentials() {
-        List<MineAccount> accounts = mineAccountRepository.findAll();
-
-        // Converte a entidade do banco para o DTO que contém apenas email e senha
+        List<MineAccount> accounts = mineAccountRepository.findAll();        // Converte a entidade do banco para o DTO que contém apenas email e senha
         return accounts.stream()
                 .map(account -> new MineAccountCredentialsDTO(account.getEmail(), account.getPassword()))
                 .collect(Collectors.toList());
